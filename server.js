@@ -148,6 +148,20 @@ app.post('/webhook', (req, res) => {
 // ---------------------------------------------------------
 // Start server
 // ---------------------------------------------------------
+
+// Temporary route to view journal.csv (for Render Free Tier)
+app.get('/journal', (req, res) => {
+    if (!fs.existsSync(JOURNAL_PATH)) {
+        return res.send("journal.csv does not exist yet. Send a test alert first.");
+    }
+
+    const data = fs.readFileSync(JOURNAL_PATH, 'utf8');
+    res.type('text/plain').send(data);
+});
+
+
+
+
 app.listen(PORT, () => {
     console.log(`Webhook server running on port ${PORT}`);
 });
