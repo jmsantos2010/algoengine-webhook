@@ -3,13 +3,18 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 
+const JOURNAL_PATH = path.join(__dirname, 'journal.csv');
+
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 // Parse JSON bodies
 app.use(express.json());
 
-// --- PARSER: turns alert_message text into structured data ---
+
+// ---------------------------------------------------------
+// PARSER: turns alert_message text into structured data
+// ---------------------------------------------------------
 function parseAlertMessage(text) {
     const result = {
         direction: null,
@@ -52,12 +57,59 @@ function parseAlertMessage(text) {
     return result;
 }
 
-// --- Simple root route so you don't see "Cannot GET /" ---
+
+// ---------------------------------------------------------
+// JOURNAL LOGGER: creates/updates journal.csv automatically
+// ---------------------------------------------------------
+function appendToJournal(parsed, raw) {
+    const headers = [
+        'timestamp',
+        'strategy',
+        'symbol',
+        'direction',
+        'entry',
+        'sl',
+        'tp',
+        'lots',
+        'risk_pct',
+        'alert_type',
+        'raw_message'
+    ];
+
+    // Create CSV with header if missing
+    if (!fs.existsSync(JOURNAL_PATH)) {
+        fs.writeFileSync(JOURNAL_PATH, headers.join(',') + '\n', 'utf8');
+    }
+
+    const row = [
+        new Date().toISOString(),
+        'London Sniper EDGE v5',
+        parsed.symbol || '',
+        parsed.direction || '',
+        parsed.entry ?? '',
+        parsed.sl ?? '',
+        parsed.tp ?? '',
+        parsed.lots ?? '',
+        parsed.risk ?? '',
+        parsed.type || '',
+        JSON.stringify(raw.alert_message || '')
+    ];
+
+    fs.appendFileSync(JOURNAL_PATH, row.join(',') + '\n', 'utf8');
+}
+
+
+// ---------------------------------------------------------
+// Root route
+// ---------------------------------------------------------
 app.get('/', (req, res) => {
     res.send('London Sniper Webhook is online.');
 });
 
-// --- Main webhook endpoint ---
+
+// ---------------------------------------------------------
+// Main webhook endpoint
+// ---------------------------------------------------------
 app.post('/webhook', (req, res) => {
     const payload = req.body;
 
@@ -67,11 +119,15 @@ app.post('/webhook', (req, res) => {
     if (payload && payload.alert_message) {
         parsed = parseAlertMessage(payload.alert_message);
         console.log('PARSED SIGNAL:', parsed);
+
+        // 🔥 NEW: Write to journal.csv
+        appendToJournal(parsed, payload);
+
     } else {
         console.log('No alert_message field found in payload.');
     }
 
-    // --- Simple file logging (NDJSON format) ---
+    // NDJSON logging (kept from your original code)
     const logEntry = {
         receivedAt: new Date().toISOString(),
         raw: payload,
@@ -88,7 +144,10 @@ app.post('/webhook', (req, res) => {
     res.status(200).json({ status: 'ok' });
 });
 
-// --- Start server ---
+
+// ---------------------------------------------------------
+// Start server
+// ---------------------------------------------------------
 app.listen(PORT, () => {
     console.log(`Webhook server running on port ${PORT}`);
 });
